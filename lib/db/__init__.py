@@ -17,8 +17,8 @@ class DB:
         },
         'guilds': {
             'id': 'TEXT PRIMARY KEY NOT NULL',
-            'l_id': 'TEXT',
-            'a_id': 'TEXT'
+            'level_id': 'TEXT',
+            'announce_id': 'TEXT'
         },
         'reports': {
             'guild_id': 'TEXT',
@@ -37,6 +37,12 @@ class DB:
             'guild_id': 'TEXT',
             'user_id': 'TEXT',
             'xp': 'INTEGER'
+        },
+        'youtube': {
+            'handle': 'TEXT',
+            'guild_id': 'TEXT',
+            'message': 'TEXT',
+            'latest_url': 'TEXT'
         }
     }
 
@@ -44,15 +50,11 @@ class DB:
         self.cxn = connect(self.DB_PATH, check_same_thread=False)
         self.cur = self.cxn.cursor()
 
-    @staticmethod
-    def diff(list1, list2):
-        return list(set(list1).symmetric_difference(set(list2)))
-
     def update_table(self, table: str, columns_str_list: list[str], columns_list: dict[str, str]):
         self.cur.execute(f"CREATE TABLE {table}_new ({' '.join(columns_str_list)});")
         self.cur.execute(f"INSERT INTO {table}_new SELECT * FROM {table};")
         self.cur.execute(f"DROP TABLE {table};")
-        self.cur.execute(f"ALTER TABLE {table}_new RENAME TO {table}")
+        self.cur.execute(f"ALTER TABLE {table}_new RENAME TO {table};")
 
     def build(self) -> None:
         for table, columns in self.tables.items():

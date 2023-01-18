@@ -1,5 +1,6 @@
 from discord.ext.commands import Cog
-from discord.commands import slash_command
+from discord.commands import slash_command, SlashCommandGroup, option
+from discord.embeds import Embed
 
 from lib.bot import Bot
 from lib.context import CustomContext
