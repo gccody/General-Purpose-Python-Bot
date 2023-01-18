@@ -60,7 +60,7 @@ class Bot(BaseBot):
         print(f"Bot Disconnected, Retrying to sign into user {self.user.display_name}#{self.user.discriminator}")
 
     async def on_guild_join(self, guild: Guild):
-        self.db.execute("""INSERT OR IGNORE INTO guilds VALUES (?,?)""", guild.id, None)
+        self.db.execute("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
 
     async def on_guild_remove(self, guild: Guild):
         self.db.execute("""DELETE FROM guilds WHERE id=?""", guild.id)
@@ -90,7 +90,7 @@ class Bot(BaseBot):
         if interaction.is_command():
             name_list, options = self.get_name(interaction.data, [])
             name = " ".join(name_list)
-            self.db.execute(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, interaction.guild_id, interaction.user.id, json.dumps(options), datetime.now().timestamp())
+            # self.db.execute(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, interaction.guild_id, interaction.user.id, json.dumps(options), datetime.now().timestamp())
         return await super().on_interaction(interaction=interaction)
 
     async def on_application_command_error(self, ctx: CustomContext, exc) -> None:
