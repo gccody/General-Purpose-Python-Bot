@@ -1,4 +1,7 @@
 import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import tzlocal
+
 from datetime import datetime
 import json
 from typing import Any
@@ -7,31 +10,38 @@ import discord
 from discord.ext.commands import AutoShardedBot as BaseBot
 from discord.ext.commands.errors import CommandNotFound, BadArgument, MissingRequiredArgument, CommandOnCooldown, \
     MissingPermissions, BotMissingPermissions
+from discord.errors import NotFound
 from http.client import HTTPException
 from discord.embeds import Embed
 from lib.config import Config
 from lib.db import DB
 from discord import Interaction, Guild
 from lib.context import CustomContext
+from lib.urban import UrbanDictionary
 
 COMMAND_ERROR_REGEX = r"Command raised an exception: (.*?(?=: )): (.*)"
 IGNORE_EXCEPTIONS = (CommandNotFound, BadArgument, RuntimeError)
 
 
 class Bot(BaseBot):
-
     def __init__(self, version: str):
         self.config: Config = Config()
+
         self.db: DB = DB()
         self.db.build()
+        self.cache: dict = dict()
+        self.tasks = AsyncIOScheduler(timezone=str(tzlocal.get_localzone()))
+        self.urban: UrbanDictionary = UrbanDictionary()
         self.VERSION = version
         super().__init__(
                          owner_id="507214515641778187",
                          shards=5000,
                          intents=discord.Intents.all(),
                          description="Misc Bot used for advanced moderation and guild customization")
+        self.tasks.add_job(self.db.commit, trigger='interval', minutes=30)
 
     async def on_connect(self):
+        self.tasks.start()
         await self.sync_commands()
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}\n")
 
@@ -101,6 +111,8 @@ class Bot(BaseBot):
         elif isinstance(exc, HTTPException):
             embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
             await ctx.respond(embed=embed)
+        elif isinstance(exc, NotFound):
+            await ctx.respond(embed=Embed(title='Not Found Error', description='One or more items could not be found.', colour=0xff0000))
         elif hasattr(exc, "original"):
             if isinstance(exc.original, HTTPException):
                 embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
