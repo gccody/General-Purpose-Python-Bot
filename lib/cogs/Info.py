@@ -16,7 +16,7 @@ class Info(Cog):
 
     @slash_command(name="status", description="Get the current status of the bot")
     async def status(self, ctx: CustomContext):
-        embed: Embed = Embed(title="Bot status", colour=0x00ff00)
+        embed: Embed = Embed(title="Bot status")
         embed.add_field(name='Shard latency', value=f"{self.bot.get_shard(ctx.guild.shard_id).latency}")
         await ctx.respond(embed=embed)
 
