@@ -1,4 +1,5 @@
 import glob
+import atexit
 from lib.bot import Bot
 from lib.context import CustomContext
 
@@ -13,10 +14,6 @@ for cog in COGS:
 print("All cogs ready, now registering shards...")
 
 
-@bot.slash_command()
-async def ping(ctx: CustomContext):
-    await ctx.send("Pong!")
-
-
 if __name__ == '__main__':
+    atexit.register(bot.db.commit)
     bot.run(bot.config.token)
