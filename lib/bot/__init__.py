@@ -21,25 +21,28 @@ from lib.db import DB
 from discord import Interaction, Guild
 from lib.context import CustomContext
 from lib.urban import UrbanDictionary
+from lib.progress import Progress
 
 COMMAND_ERROR_REGEX = r"Command raised an exception: (.*?(?=: )): (.*)"
 IGNORE_EXCEPTIONS = (CommandNotFound, BadArgument, RuntimeError)
 
 
 class Bot(BaseBot):
-    def __init__(self, version: str):
+    def __init__(self, shards: list[int], version: str):
         self.config: Config = Config()
-
         self.db: DB = DB()
         self.db.build()
         self.cache: dict = dict()
         self.tasks = AsyncIOScheduler(timezone=str(tzlocal.get_localzone()))
+        self.logged_in = False
+        self.shards_ready = False
         self.ready = False
+        self.expected_shards = len(shards)
         self.urban: UrbanDictionary = UrbanDictionary()
         self.VERSION = version
         super().__init__(
                          owner_id="507214515641778187",
-                         shards=5000,
+                         shards=shards,
                          intents=discord.Intents.all(),
                          debug_guilds=["1064582321728143421"],
                          description="Misc Bot used for advanced moderation and guild customization")
@@ -48,14 +51,29 @@ class Bot(BaseBot):
     async def on_connect(self):
         self.tasks.start()
         await self.sync_commands()
-        print(f"Signed into {self.user.display_name}#{self.user.discriminator}\n")
-        self.ready = True
+        print(f"Signed into {self.user.display_name}#{self.user.discriminator}")
+        self.logged_in = True
+        if self.shards_ready and self.logged_in:
+            self.register_guilds()
 
     async def on_shard_ready(self, shard_id):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                              name=f"SHARD {shard_id}"),
                                    shard_id=shard_id)
-        print(f" - Shard {shard_id+1}/{self.shard_count} ready")
+        print(f"Shard Ready [{shard_id+1}/{self.shard_count}]")
+        if shard_id+1 == self.expected_shards:
+            self.shards_ready = True
+        if self.shards_ready and self.logged_in:
+            self.register_guilds()
+
+    def register_guilds(self):
+        progress = Progress('Registering guilds', len(self.guilds))
+        for guild in self.guilds:
+            self.db.execute("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
+            progress.next()
+        self.db.commit()
+        self.ready = True
+        print('\nEverything is ready!')
 
     async def get_application_context(
         self, interaction: Interaction, cls=CustomContext
@@ -134,7 +152,8 @@ class Bot(BaseBot):
         else:
             raise exc
 
-    async def cpu_percent(self, interval = None, *args, **kwargs):
+    @staticmethod
+    async def cpu_percent(interval=None, *args, **kwargs):
         python_process = psutil.Process(os.getpid())
         if interval is not None and interval > 0.0:
             python_process.cpu_percent(*args, **kwargs)

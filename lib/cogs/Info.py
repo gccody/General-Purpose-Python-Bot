@@ -1,6 +1,5 @@
 import os
 
-import discord
 import psutil
 from discord.commands import SlashCommandGroup
 from discord.embeds import Embed

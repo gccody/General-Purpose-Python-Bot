@@ -1,7 +1,9 @@
 import re
 import sys
+import time
 from sqlite3 import Connection, Cursor, connect, Error
 
+from lib.progress import Progress
 
 class DB:
     DB_PATH = "./data/database.db"
@@ -96,15 +98,13 @@ class DB:
         self.cur.execute(f"ALTER TABLE {table}_new RENAME TO {table};")
 
     def build(self) -> None:
-        print('Building Database...')
+        progress = Progress("Building Database", len(self.table_info))
         for table in self.table_info:
             table_data = table['table']
             for table_name, columns in table_data.items():
-                print(f' - {table_name}')
                 create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name}("
                 constraints = table.get('constraints')
                 for column_name, data_type in columns.items():
-                    print(f'    - {column_name}')
                     if constraints:
                         not_null = constraints.get('not_null')
                         if not_null:
@@ -136,6 +136,8 @@ class DB:
                 self.cur.execute(create_table_query)
                 data = re.search(r"\((?<=\()(?:.)+", create_table_query).group()
                 self.update_table(table_name, data)
+                progress.next()
+                time.sleep(.2)
         self.commit()
 
     def commit(self) -> None:
