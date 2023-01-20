@@ -1,4 +1,7 @@
 import asyncio
+import os
+
+import psutil
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import tzlocal
 
@@ -31,12 +34,14 @@ class Bot(BaseBot):
         self.db.build()
         self.cache: dict = dict()
         self.tasks = AsyncIOScheduler(timezone=str(tzlocal.get_localzone()))
+        self.ready = False
         self.urban: UrbanDictionary = UrbanDictionary()
         self.VERSION = version
         super().__init__(
                          owner_id="507214515641778187",
                          shards=5000,
                          intents=discord.Intents.all(),
+                         debug_guilds=["1064582321728143421"],
                          description="Misc Bot used for advanced moderation and guild customization")
         self.tasks.add_job(self.db.commit, trigger='interval', minutes=30)
 
@@ -44,6 +49,7 @@ class Bot(BaseBot):
         self.tasks.start()
         await self.sync_commands()
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}\n")
+        self.ready = True
 
     async def on_shard_ready(self, shard_id):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
@@ -87,10 +93,11 @@ class Bot(BaseBot):
                     return self.get_name(data.get('options'), [*groups, data.get('name')])
 
     async def on_interaction(self, interaction: discord.Interaction):
+        if not self.ready: return
         if interaction.is_command():
             name_list, options = self.get_name(interaction.data, [])
             name = " ".join(name_list)
-            # self.db.execute(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, interaction.guild_id, interaction.user.id, json.dumps(options), datetime.now().timestamp())
+            self.db.execute(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, interaction.guild_id, interaction.user.id, json.dumps(options), datetime.now().timestamp())
         return await super().on_interaction(interaction=interaction)
 
     async def on_application_command_error(self, ctx: CustomContext, exc) -> None:
@@ -126,3 +133,11 @@ class Bot(BaseBot):
 
         else:
             raise exc
+
+    async def cpu_percent(self, interval = None, *args, **kwargs):
+        python_process = psutil.Process(os.getpid())
+        if interval is not None and interval > 0.0:
+            python_process.cpu_percent(*args, **kwargs)
+            await asyncio.sleep(interval)
+        return psutil.cpu_percent(*args, **kwargs)
+
