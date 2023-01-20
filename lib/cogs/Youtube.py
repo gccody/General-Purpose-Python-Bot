@@ -17,7 +17,7 @@ class Youtube(Cog):
 
     youtube = SlashCommandGroup('youtube')
 
-    def check_channel(self, handle: str, message: str, guild_id: str):
+    async def check_channel(self, handle: str, message: str, guild_id: str):
         async with aiohttp.ClientSession() as session:
             res = await session.get(f"https://youtube.com/@{handle}/videos")
             html = await res.text()
@@ -26,7 +26,6 @@ class Youtube(Cog):
                                                                                   html).group()
             except AttributeError:
                 latest_video_url = ""
-
 
     @youtube.command(name='notify', description='Get a ping when this user uploads')
     @option('handle',
@@ -49,7 +48,8 @@ class Youtube(Cog):
             elif res.status not in range(200, 300):
                 return await ctx.respond(embed=Embed(title=':x: | Something went wrong', colour=0xff0000))
 
-            user = self.bot.db.record("""SELECT * FROM youtube WHERE handle = ? AND guild_id = ?""", handle, ctx.guild_id)
+            user = self.bot.db.record("""SELECT * FROM youtube WHERE handle = ? AND guild_id = ?""", handle,
+                                      ctx.guild_id)
             if user:
                 return await ctx.respond(embed=Embed(title=':x: | Already watching for new videos', colour=0xff0000))
 
@@ -60,16 +60,11 @@ class Youtube(Cog):
             latest_video_url = "https://www.youtube.com/watch?v=" + re.search('(?<="videoId":").*?(?=")', html).group()
         except AttributeError:
             latest_video_url = ""
-        self.bot.db.execute("""INSERT INTO youtube VALUES (?,?,?,?)""", handle, ctx.guild_id, message if message else f"@{handle} has uploaded a video", latest_video_url)
+        self.bot.db.execute("""INSERT INTO youtube VALUES (?,?,?,?)""", handle, ctx.guild_id,
+                            message if message else f"@{handle} has uploaded a video", latest_video_url)
         await ctx.respond(embed=Embed(title=f'✅ | Waiting for @{handle} to post more videos'))
-        self.bot.tasks.add_job(id=f"{handle}|{ctx.guild_id}", args=(handle, message, ctx.guild_id,), trigger='interval', minutes=1)
-
-
-
-
-
-
-
+        self.bot.tasks.add_job(id=f"{handle}|{ctx.guild_id}", args=(handle, message, ctx.guild_id,), trigger='interval',
+                               minutes=1)
 
 
 def setup(bot):
