@@ -9,7 +9,6 @@ class Config:
     def __init__(self) -> None:
         with open('config.json', 'r', encoding='utf-8') as f:
             self.__data = json.loads(f.read())
-        self.prefix: str = self.__data["prefix"] if 'prefix' in self.__data else ">"
         self.token: str = self.__data["token"] if 'token' in self.__data else ""
         self.default_language: str = self.__data["default_language"] if 'default_language' in self.__data else "en"
 
@@ -38,7 +37,6 @@ class Config:
 
     def to_json(self):
         return {
-            "prefix": self.prefix,
             "token": self.token,
-            "default_language": self.default_language,
+            "default_language": self.default_language
         }
