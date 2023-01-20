@@ -1,3 +1,4 @@
+import asyncio
 import atexit
 import glob
 import sys
@@ -10,6 +11,7 @@ import requests
 from lib.bot import Bot
 from lib.config import Config
 from lib.progress import Progress
+from asyncer import asyncify
 
 COGS = [path.split("\\")[-1][:-3] if "\\" in path else path.split("/")[-1][:-3] for path in
         glob.glob('./lib/cogs/*.py')]
@@ -27,7 +29,7 @@ def start(cluster_id: int):
     progress = Progress("Registering Cogs", len(COGS))
     for index, cog in enumerate(COGS):
         bot.load_extension(f"lib.cogs.{cog}")
-        sleep(.2)
+        # sleep(.2)
         progress.next()
     atexit.register(bot.db.commit)
     bot.run(bot.config.token)
