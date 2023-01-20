@@ -137,7 +137,6 @@ class DB:
                 data = re.search(r"\((?<=\()(?:.)+", create_table_query).group()
                 self.update_table(table_name, data)
                 progress.next()
-                time.sleep(.2)
         self.commit()
 
     def commit(self) -> None:

@@ -1,27 +1,26 @@
 import asyncio
-import os
-
-import psutil
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import tzlocal
-
-from datetime import datetime
 import json
+import os
+from datetime import datetime
+from http.client import HTTPException
 from typing import Any
 
 import discord
+import psutil
+import tzlocal
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from discord import Interaction, Guild
+from discord.embeds import Embed
+from discord.errors import NotFound
 from discord.ext.commands import AutoShardedBot as BaseBot
 from discord.ext.commands.errors import CommandNotFound, BadArgument, MissingRequiredArgument, CommandOnCooldown, \
     MissingPermissions, BotMissingPermissions
-from discord.errors import NotFound
-from http.client import HTTPException
-from discord.embeds import Embed
+
 from lib.config import Config
-from lib.db import DB
-from discord import Interaction, Guild
 from lib.context import CustomContext
-from lib.urban import UrbanDictionary
+from lib.db import DB
 from lib.progress import Progress
+from lib.urban import UrbanDictionary
 
 COMMAND_ERROR_REGEX = r"Command raised an exception: (.*?(?=: )): (.*)"
 IGNORE_EXCEPTIONS = (CommandNotFound, BadArgument, RuntimeError)
@@ -34,37 +33,35 @@ class Bot(BaseBot):
         self.db.build()
         self.cache: dict = dict()
         self.tasks = AsyncIOScheduler(timezone=str(tzlocal.get_localzone()))
-        self.logged_in = False
         self.shards_ready = False
         self.ready = False
         self.expected_shards = len(shards)
+        self.shard_progress = Progress('Shards Ready', self.expected_shards)
         self.urban: UrbanDictionary = UrbanDictionary()
         self.VERSION = version
         super().__init__(
-                         owner_id="507214515641778187",
-                         shards=shards,
-                         intents=discord.Intents.all(),
-                         debug_guilds=["1064582321728143421"],
-                         description="Misc Bot used for advanced moderation and guild customization")
+            owner_id="507214515641778187",
+            shards=shards,
+            intents=discord.Intents.all(),
+            debug_guilds=["1064582321728143421"],
+            description="Misc Bot used for advanced moderation and guild customization")
         self.tasks.add_job(self.db.commit, trigger='interval', minutes=30)
+        self.shard_progress.start()
 
     async def on_connect(self):
-        self.tasks.start()
         await self.sync_commands()
+        while not self.shards_ready:
+            await asyncio.sleep(.5)
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}")
-        self.logged_in = True
-        if self.shards_ready and self.logged_in:
-            self.register_guilds()
+        self.register_guilds()
 
     async def on_shard_ready(self, shard_id):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                              name=f"SHARD {shard_id}"),
                                    shard_id=shard_id)
-        print(f"Shard Ready [{shard_id+1}/{self.shard_count}]")
-        if shard_id+1 == self.expected_shards:
+        self.shard_progress.next()
+        if shard_id + 1 == self.expected_shards:
             self.shards_ready = True
-        if self.shards_ready and self.logged_in:
-            self.register_guilds()
 
     def register_guilds(self):
         progress = Progress('Registering guilds', len(self.guilds))
@@ -73,15 +70,13 @@ class Bot(BaseBot):
             progress.next()
         self.db.commit()
         self.ready = True
+        self.tasks.start()
         print('\nEverything is ready!')
 
     async def get_application_context(
-        self, interaction: Interaction, cls=CustomContext
+            self, interaction: Interaction, cls=CustomContext
     ):
         return await super().get_application_context(interaction, cls=cls)
-
-    async def on_disconnect(self):
-        print(f"Bot Disconnected, Retrying to sign into user {self.user.display_name}#{self.user.discriminator}")
 
     async def on_guild_join(self, guild: Guild):
         self.db.execute("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
@@ -115,7 +110,8 @@ class Bot(BaseBot):
         if interaction.is_command():
             name_list, options = self.get_name(interaction.data, [])
             name = " ".join(name_list)
-            self.db.execute(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, interaction.guild_id, interaction.user.id, json.dumps(options), datetime.now().timestamp())
+            self.db.execute(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, interaction.guild_id,
+                            interaction.user.id, json.dumps(options), datetime.now().timestamp())
         return await super().on_interaction(interaction=interaction)
 
     async def on_application_command_error(self, ctx: CustomContext, exc) -> None:
@@ -137,7 +133,8 @@ class Bot(BaseBot):
             embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
             await ctx.respond(embed=embed)
         elif isinstance(exc, NotFound):
-            await ctx.respond(embed=Embed(title='Not Found Error', description='One or more items could not be found.', colour=0xff0000))
+            await ctx.respond(embed=Embed(title='Not Found Error', description='One or more items could not be found.',
+                                          colour=0xff0000))
         elif hasattr(exc, "original"):
             if isinstance(exc.original, HTTPException):
                 embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
@@ -159,4 +156,3 @@ class Bot(BaseBot):
             python_process.cpu_percent(*args, **kwargs)
             await asyncio.sleep(interval)
         return psutil.cpu_percent(*args, **kwargs)
-
