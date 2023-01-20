@@ -1,11 +1,9 @@
 import re
 
 from discord.ext.commands import Cog
-from discord.commands import slash_command, SlashCommandGroup, option
+from discord.commands import SlashCommandGroup, option
 from discord.embeds import Embed
 import aiohttp
-
-from bs4 import BeautifulSoup
 
 from lib.bot import Bot
 from lib.context import CustomContext
