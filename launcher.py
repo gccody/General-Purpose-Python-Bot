@@ -1,11 +1,10 @@
 import glob
 import atexit
 from lib.bot import Bot
-from lib.context import CustomContext
 
 COGS = [path.split("\\")[-1][:-3] if "\\" in path else path.split("/")[-1][:-3] for path in
         glob.glob('./lib/cogs/*.py')]
-VERSION = "0.5.0"
+VERSION = "0.0.1"
 bot: Bot = Bot(VERSION)
 print("Registering cogs...")
 for cog in COGS:
