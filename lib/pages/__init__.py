@@ -2,45 +2,18 @@ import random
 from datetime import datetime
 
 import discord
-from discord import Message
 
 from lib.bot import Bot
 
 
 class Pagination(discord.ui.View):
-    """
-    Embed Paginator.
-    Parameters:
-    ----------
-    timeout: int
-        How long the Paginator should timeout in, after the last interaction. (In seconds) (Overrides default of 60)
-    PreviousButton: discord.ui.Button
-        Overrides default previous button.
-    NextButton: discord.ui.Button
-        Overrides default next button.
-    PageCounterStyle: discord.ButtonStyle
-        Overrides default page counter style.
-    InitialPage: int
-        Page to start the pagination on.
-    AllowExtInput: bool
-        Overrides ability for 3rd party to interract with button.
-    """
-
     ctx: discord.Interaction
 
     def __init__(self, *,
                  bot: Bot,
                  timeout: int = 60,
-                 PreviousButton: discord.ui.Button = discord.ui.Button(emoji=discord.PartialEmoji(name="\U000025c0")),
-                 NextButton: discord.ui.Button = discord.ui.Button(emoji=discord.PartialEmoji(name="\U000025b6")),
-                 LastButton: discord.ui.Button = discord.ui.Button(emoji=discord.PartialEmoji(name="\U000023ed")),
-                 FirstButton: discord.ui.Button = discord.ui.Button(emoji=discord.PartialEmoji(name="\U000023ee")),
-                 PageCounterStyle: discord.ButtonStyle = discord.ButtonStyle.grey,
-                 InitialPage: int = 0,
                  ephemeral: bool = False) -> None:
         self.bot = bot
-        self.PageCounterStyle = PageCounterStyle
-        self.InitialPage = InitialPage
         self.ephemeral = ephemeral
 
         self.pages = None
@@ -62,18 +35,15 @@ class Pagination(discord.ui.View):
         self.pages = pages
         self.total_page_count = len(pages)
         self.ctx: discord.Interaction = ctx
-        self.current_page = self.InitialPage
+        self.current_page = 0
         if self.total_page_count == 1:
             self.next.disabled = True
             self.previous.disabled = True
 
-        # self.PreviousButton.callback = self.previous_button_callback
-        # self.NextButton.callback = self.next_button_callback
+        self.counter.label = f'{1}/{self.total_page_count}'
 
-        self.counter.label=f'{1}/{self.total_page_count}'
-
-        self.message: Message = await self.bot.send(ctx, embed=self.pages[self.InitialPage], view=self,
-                                                    ephemeral=self.ephemeral)
+        await self.bot.send(ctx, embed=self.pages[0], view=self,
+                            ephemeral=self.ephemeral)
 
     def handle_buttons(self):
         self.first.disabled = self.current_page <= 1
@@ -129,20 +99,7 @@ class Pagination(discord.ui.View):
         self.counter.label = f"{self.current_page + 1}/{self.total_page_count}"
         await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
 
-    # async def next_button_callback(self, interaction: discord.Interaction):
-    #     if interaction.user != self.ctx.author and self.AllowExtInput:
-    #         embed = discord.Embed(description="You cannot control this pagination because you did not execute it.",
-    #                               color=discord.Colour.red())
-    #         return await self.bot.send(self.ctx, embed=embed, ephemeral=True)
-    #     print('next')
-    #     await self.next()
-    #     await interaction.response.defer()
-    #
-    # async def previous_button_callback(self, interaction: discord.Interaction):
-    #     if interaction.user != self.ctx.author and self.AllowExtInput:
-    #         embed = discord.Embed(description="You cannot control this pagination because you did not execute it.",
-    #                               color=discord.Colour.red())
-    #         return await self.bot.send(self.ctx, embed=embed, ephemeral=True)
-    #     print('previous')
-    #     await self.previous()
-    #     await interaction.response.defer()
+    async def on_timeout(self) -> None:
+        self.clear_items()
+        self.add_item(self.counter)
+        await self.ctx.edit_original_response(embed=self.pages[self.current_page], view=self)
