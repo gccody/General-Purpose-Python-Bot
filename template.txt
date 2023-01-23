@@ -1,19 +1,18 @@
 from discord.ext.commands import Cog
-from discord.commands import slash_command, SlashCommandGroup, option
+from discord import app_commands, Interaction
 from discord.embeds import Embed
 
 from lib.bot import Bot
-from lib.context import CustomContext
 
 
 class Class(Cog):
     def __init__(self, bot):
         self.bot: Bot = bot
 
-    @slash_command(name="command_name")
+    @app_commands.command(name="command_name")
     async def command_name(self, ctx: CustomContext):
         pass
 
 
-def setup(bot):
-    bot.add_cog(Class(bot))
+async def setup(bot):
+    await bot.add_cog(Class(bot))

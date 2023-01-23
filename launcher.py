@@ -1,17 +1,17 @@
 import asyncio
 import atexit
 import glob
-import sys
+from http.client import HTTPException
 
-from time import sleep
-
+import discord
 import numpy as np
 import requests
+from discord import Embed, NotFound, Interaction
+from discord.app_commands import CommandOnCooldown, MissingPermissions, BotMissingPermissions
 
-from lib.bot import Bot
+from lib.bot import Bot, IGNORE_EXCEPTIONS
 from lib.config import Config
 from lib.progress import Progress
-from asyncer import asyncify
 
 COGS = [path.split("\\")[-1][:-3] if "\\" in path else path.split("/")[-1][:-3] for path in
         glob.glob('./lib/cogs/*.py')]
@@ -24,16 +24,62 @@ CLUSTERS = round((len(SHARDS_LIST) / 2) + 1)
 SHARDS_SPLIT: list[np.ndarray[int]] = np.array_split(SHARDS_LIST, CLUSTERS)
 
 
-def start(cluster_id: int):
-    bot: Bot = Bot(list((SHARDS_SPLIT[cluster_id])), VERSION)
+async def start():
+    bot = Bot(SHARDS_LIST, VERSION)
     progress = Progress("Registering Cogs", len(COGS))
     for index, cog in enumerate(COGS):
-        bot.load_extension(f"lib.cogs.{cog}")
-        # sleep(.2)
+        await bot.load_extension(f"lib.cogs.{cog}")
         progress.next()
-    atexit.register(bot.db.commit)
-    bot.run(bot.config.token)
+
+        # @bot.event
+        # async def on_interaction(ctx: Interaction):
+        #     if isinstance(ctx.command, Command):
+        #         print('is Command')
+        #         raise BotNotReady()
+
+        @bot.tree.error
+        async def on_command_error(ctx: Interaction, exc) -> None:
+            if any([isinstance(exc, error) for error in IGNORE_EXCEPTIONS]):
+                pass
+            elif isinstance(exc, CommandOnCooldown):
+                embed: Embed = Embed(title='Command on Cooldown',
+                                     description=f"That command is on cooldown. Try again in {exc.retry_after:,.2f} seconds.",
+                                     colour=0xff0000)
+                await bot.send(ctx, embed=embed)
+            elif isinstance(exc, MissingPermissions):
+                embed: Embed = Embed(title='You are missing permissions', description=f'>>> {exc}', colour=0xff0000)
+                await bot.send(ctx, embed=embed)
+            elif isinstance(exc, BotMissingPermissions):
+                embed: Embed = Embed(title='Bot Missing Permissions', description=f">>> {exc}", colour=0xff0000)
+                await bot.send(ctx, embed=embed)
+            elif isinstance(exc, HTTPException):
+                embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
+                await bot.send(ctx, embed=embed)
+            elif isinstance(exc, NotFound):
+                await bot.send(ctx,
+                    embed=Embed(title='Not Found Error', description='One or more items could not be found.',
+                                colour=0xff0000))
+            elif hasattr(exc, "original"):
+                if isinstance(exc.original, HTTPException):
+                    embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
+                    await bot.send(ctx, embed=embed)
+                if isinstance(exc.original, discord.Forbidden):
+                    embed: Embed = Embed(title='Forbidden Error', description='Insufficient Permissions',
+                                         colour=0xff0000)
+                    await bot.send(ctx, embed=embed)
+                else:
+                    raise exc.original
+
+            else:
+                raise exc
+
+    async def exit_handler():
+        bot.db.commit()
+        await bot.close()
+
+    atexit.register(exit_handler)
+    await bot.start(bot.config.token)
 
 
 if __name__ == '__main__':
-    start(0)
+    asyncio.run(start())

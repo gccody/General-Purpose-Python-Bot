@@ -1,31 +1,28 @@
 import random
+from typing import Optional
 
 import discord
 from discord.ext.commands import Cog
-from discord.commands import option,slash_command
-from discord.commands import SlashCommandGroup
+from discord import app_commands, Interaction
 from discord.embeds import Embed
 
 from lib.bot import Bot
-from lib.context import CustomContext
-from lib.pages import Pagination
 
 from expiringdict import ExpiringDict
 
+from lib.pages import Pagination
+
 
 class Fun(Cog):
+    urban = app_commands.Group(name='urban', description='Search the urban dictionary')
+
     def __init__(self, bot: Bot):
         self.bot: Bot = bot
         self.cache = ExpiringDict(max_len=100, max_age_seconds=3600)
 
-    urban = SlashCommandGroup('urban')
-
-    @slash_command(name='eightball', description='Make predictions')
-    @option('question',
-            str,
-            description='Yes/No question',
-            required=True)
-    async def eightball(self, ctx: CustomContext, question: str):
+    @app_commands.command(name='eightball', description='Make predictions')
+    @app_commands.describe(question='Yes/No question')
+    async def eightball(self, ctx: Interaction, question: str):
         responses = [
             'It is certain',
             'Reply hazy, try again',
@@ -51,40 +48,26 @@ class Fun(Cog):
             'Signs point to no',
             'Most likely not',
         ]
-        await ctx.respond(embed=Embed(title=f':8ball: | {random.choice(responses)}, {ctx.user.display_name}'))
+        await ctx.response.send_message(embed=Embed(title=f':8ball: | {random.choice(responses)}, {ctx.user.display_name}'))
 
-    @slash_command(name='embed')
-    @option('title',
-            str,
-            description='Title of embed',
-            required=False)
-    @option('title_url',
-            str,
-            description='Url embeded into title',
-            required=False)
-    @option('author',
-            discord.Member,
-            description='Author of the embed')
-    async def embed_message(self, ctx: CustomContext):
+    @app_commands.command(name='embed')
+    @app_commands.describe(title='Title of embed', title_url='Url embeded into title', author='Author of the embed')
+    async def embed_message(self, ctx: Interaction, title: Optional[str], title_url: Optional[str], author: Optional[discord.Member]):
         pass
 
     @urban.command(name='define', description='Define a word in the urban dictionary')
-    @option('word',
-            str,
-            description='Word to look up',
-            required=True)
-    async def urban_define(self, ctx: CustomContext, word: str):
+    @app_commands.describe(word='Word to look up')
+    async def urban_define(self, ctx: Interaction, word: str):
+        await ctx.response.defer()
         res = self.bot.urban.define_word(word)
         if not res:
-            return await ctx.respond(embed=Embed(title=f':x: | Failed to find word: {word}', colour=0xff0000))
+            return await ctx.response.send_message(embed=Embed(title=f':x: | Failed to find word: {word}', colour=0xff0000))
         embeds: list[Embed] = []
         for definition in res:
             embeds.append(Embed(title=word.title(), description=definition))
-        paginator = Pagination(pages=embeds)
-        await paginator.respond(ctx.interaction)
+        paginator = Pagination(bot=self.bot)
+        await paginator.start(ctx, pages=embeds)
 
 
-
-
-def setup(bot):
-    bot.add_cog(Fun(bot))
+async def setup(bot):
+    await bot.add_cog(Fun(bot))
