@@ -15,10 +15,8 @@ class Pagination(discord.ui.View):
                  ephemeral: bool = False) -> None:
         self.bot = bot
         self.ephemeral = ephemeral
-
+        self.current_page = 0
         self.pages = None
-        self.message = None
-        self.current_page = None
         self.total_page_count = None
 
         super().__init__(timeout=timeout)
@@ -35,7 +33,6 @@ class Pagination(discord.ui.View):
         self.pages = pages
         self.total_page_count = len(pages)
         self.ctx: discord.Interaction = ctx
-        self.current_page = 0
         if self.total_page_count == 1:
             self.next.disabled = True
             self.previous.disabled = True
@@ -52,7 +49,7 @@ class Pagination(discord.ui.View):
         self.next.disabled = self.current_page == self.total_page_count - 1
 
     @discord.ui.button(emoji=discord.PartialEmoji(name="\U000023ee"), disabled=True)
-    async def first(self, interaction: discord.Interaction, button: discord.Button):
+    async def first(self, interaction: discord.Interaction, _):
         if interaction.user != self.ctx.user:
             embed = discord.Embed(description="You cannot control this pagination because you did not execute it.",
                                   color=discord.Colour.red())
@@ -63,7 +60,7 @@ class Pagination(discord.ui.View):
         await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
 
     @discord.ui.button(emoji=discord.PartialEmoji(name="\U000025c0"), disabled=True)
-    async def previous(self, interaction: discord.Interaction, button: discord.Button):
+    async def previous(self, interaction: discord.Interaction, _):
         if interaction.user != self.ctx.user:
             embed = discord.Embed(description="You cannot control this pagination because you did not execute it.",
                                   color=discord.Colour.red())
@@ -78,7 +75,7 @@ class Pagination(discord.ui.View):
         pass
 
     @discord.ui.button(emoji=discord.PartialEmoji(name="\U000025b6"))
-    async def next(self, interaction: discord.Interaction, button: discord.Button):
+    async def next(self, interaction: discord.Interaction, _):
         if interaction.user != self.ctx.user:
             embed = discord.Embed(description="You cannot control this pagination because you did not execute it.",
                                   color=discord.Colour.red())
@@ -89,7 +86,7 @@ class Pagination(discord.ui.View):
         await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
 
     @discord.ui.button(emoji=discord.PartialEmoji(name="\U000023ed"))
-    async def last(self, interaction: discord.Interaction, button: discord.Button):
+    async def last(self, interaction: discord.Interaction, _):
         if interaction.user != self.ctx.user:
             embed = discord.Embed(description="You cannot control this pagination because you did not execute it.",
                                   color=discord.Colour.red())
