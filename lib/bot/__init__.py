@@ -102,6 +102,10 @@ class Bot(AutoShardedBot):
         for guild in self.guilds:
             self.db.execute("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
             progress.next()
+
+        for guild in self.db.records("""SELECT * FROM guilds"""):
+            if not self.get_guild(guild.id):
+                self.db.execute("""DELETE FROM guilds WHERE id=?""", guild.id)
         self.db.commit()
         self.ready = True
         self.tasks.start()
