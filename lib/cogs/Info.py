@@ -1,42 +1,43 @@
 import os
+from typing import Optional
 
+import discord
 import psutil
-from discord.commands import SlashCommandGroup
 from discord.embeds import Embed
 from discord.ext.commands import Cog
+from discord import app_commands
 from discord.guild import Guild
+from discord.interactions import Interaction
 
 from lib.bot import Bot
-from lib.context import CustomContext
 
 
 class Info(Cog):
+    bott = app_commands.Group(name='bot', description='Get the status of the bot')
+    server = app_commands.Group(name='server', description='Get the status of the server')
+
     def __init__(self, bot: Bot):
         self.bot: Bot = bot
 
-    bot = SlashCommandGroup('bot')
-    server = SlashCommandGroup('server')
-
-    @bot.command(name="status", description="Get the current status of the bot")
-    async def status(self, ctx: CustomContext):
+    @bott.command(name="status", description="Get the current status of the bot")
+    async def status(self, ctx: Interaction):
         await ctx.response.defer()
         embed: Embed = Embed()
-        nickname = (await ctx.guild.fetch_member(self.bot.user.id)).nick
         python_process = psutil.Process(os.getpid())
         owner = await self.bot.fetch_user(self.bot.owner_id)
         # embed.set_author(name=f"{nickname if nickname else self.bot.user.display_name}#{self.bot.user.discriminator}",
         #                  icon_url="https://i.imgur.com/QMykWjw.png")
         embed.description = f"""
-**SHARD**: `{ctx.guild.shard_id + 1}/{self.bot.shard_count}` **LATENCY**: `{round(self.bot.get_shard(ctx.guild.shard_id).latency, 2)}`
-**RAM**: `{round(python_process.memory_info()[0] / 2. ** 30, 2)} Gb` **CPU**: `{await self.bot.cpu_percent(1)}%`
-**OWNER**: `{owner.display_name}#{owner.discriminator}`
+**SHARD:** `{ctx.guild.shard_id + 1}/{self.bot.shard_count}` **LATENCY:** `{round(self.bot.get_shard(ctx.guild.shard_id).latency, 2)}`
+**RAM:** `{round(python_process.memory_info()[0] / 2. ** 30, 2)} Gb` **CPU:** `{await self.bot.cpu_percent(1)}%`
+**OWNER:** `{owner.display_name}#{owner.discriminator}`
+**SERVERS:** `{len(self.bot.guilds)}` **MEMBERS:** `{len(list(self.bot.get_all_members()))}` **CHANNELS:** `{len(list(self.bot.get_all_channels()))}`
 """
         # embed.add_field(name='Total commands', value=f"`{len(self.bot.application_commands)}`", inline=False)
-
-        await ctx.respond(embed=embed)
+        await self.bot.send(ctx, embed=embed)
 
     @server.command(name='info', description='Get the info of the current server')
-    async def server_info(self, ctx: CustomContext):
+    async def server_info(self, ctx: Interaction):
         await ctx.response.defer()
         guild: Guild = ctx.guild
         embed: Embed = Embed()
@@ -62,10 +63,10 @@ class Info(Cog):
 **Name:** `{guild.name}`
 **ID:** `{guild.id}`
 **Owner:** `{guild.owner.display_name}#{guild.owner.discriminator} ({guild.owner_id})`
-**Created At:** `<t:{round(guild.created_at.timestamp())}:R>`
+**Created At:** <t:{round(guild.created_at.timestamp())}:R>
 **Members:** `{len([member for member in guild.members if not member.bot])}`
 **Bots:** `{len([member for member in guild.members if member.bot])}`
-**Banned:** `{len(await guild.bans().flatten())}`
+**Banned:** `{len([entry async for entry in guild.bans(limit=5000)])}`
 """, inline=False)
         embed.add_field(name='___Description___', value=guild.description if guild.description else 'None', inline=False)
 #         embed.add_field(name='___Extras___', value=f"""
@@ -95,7 +96,7 @@ class Info(Cog):
         embed.add_field(name='___Boost___', value=f"""
 **Level:** `{boost_tier}`
 **Total:** `{guild.premium_subscription_count}`
-**Boost Bar:** `{"✅" if guild.premium_progress_bar_enabled else ":x:"}`
+**Boost Bar:** `{"✅" if guild.premium_progress_bar_enabled else "❌"}`
 **Role:** `{guild.premium_subscriber_role.mention if guild.premium_subscriber_role else 'None'}`
 """)
         embed.add_field(name=f'___Roles___ [{roles_count}]', value=f"""
@@ -108,8 +109,8 @@ class Info(Cog):
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
 
-        await ctx.respond(embed=embed)
+        await self.bot.send(ctx, embed=embed)
 
 
-def setup(bot):
-    bot.add_cog(Info(bot))
+async def setup(bot):
+    await bot.add_cog(Info(bot))

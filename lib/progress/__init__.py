@@ -1,7 +1,42 @@
 from datetime import datetime
 import sys
 import asyncio
-from functools import wraps, partial
+
+
+def format_str(amount: int, string: str):
+    if amount == 1:
+        return string
+    return string + 's'
+
+
+def humanize(time):
+    times = []
+    times_to_ms = {
+        'Year': 3154e7,
+        'Month': 2628e6,
+        'Week': 604800,
+        'Day': 86400,
+        'Hour': 3600,
+        'Minute': 60,
+        'Second': 1
+    }
+    for i, mod in times_to_ms.items():
+        amount, time = divmod(time, mod)
+        if amount == 0: continue
+        times.append(f'{int(amount)} {format_str(amount, i)}')
+
+    return ' '.join(times)
+
+
+class Timer:
+    start_time = datetime.now()
+
+    async def start(self):
+        print("\n")
+        while True:
+            await asyncio.sleep(1)
+            sys.stdout.write(f"\r{humanize((datetime.now() - self.start_time).seconds)}")
+            sys.stdout.flush()
 
 
 class Progress:
