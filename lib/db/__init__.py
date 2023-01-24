@@ -41,6 +41,74 @@ class Get:
         return new_row
 
 
+class Delete:
+    def __init__(self, parent):
+        self.parent = parent
+        self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
+
+    def __getattribute__(self, name):
+        table_names = super().__getattribute__('_table_names')
+        if name in table_names:
+            _delete_rows = super().__getattribute__('_delete_rows')
+            return lambda **kwargs: _delete_rows(name, **kwargs)
+        return super().__getattribute__(name)
+
+    def _delete_rows(self, table_name, **kwargs):
+        if not kwargs:
+            raise ValueError("You must provide at least one argument to delete a row.")
+        else:
+            query = f"DELETE FROM {table_name} WHERE "
+            query += " AND ".join([f"{key}='{value}'" for key, value in kwargs.items()])
+            self.parent.cur.execute(query)
+        self.parent.cxn.commit()
+
+
+class Update:
+    def __init__(self, parent):
+        self.parent = parent
+        self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
+
+    def __getattribute__(self, name):
+        table_names = super().__getattribute__('_table_names')
+        if name in table_names:
+            _update_rows = super().__getattribute__('_update_rows')
+            return lambda **kwargs: _update_rows(name, **kwargs)
+        return super().__getattribute__(name)
+
+    def _update_rows(self, table_name, where, set_data):
+        query = f"UPDATE {table_name} SET "
+        query += ",".join([f"{key}='{value}'" for key, value in set_data.items()])
+        query += f" WHERE {where}"
+        self.parent.cur.execute(query)
+        self.parent.cxn.commit()
+
+
+class Insert:
+    def __init__(self, parent):
+        self.parent = parent
+        self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
+
+    def __getattribute__(self, name):
+        table_names = super().__getattribute__('_table_names')
+        if name in table_names:
+            _insert_row = super().__getattribute__('_insert_row')
+            return lambda **kwargs: _insert_row(name, **kwargs)
+        return super().__getattribute__(name)
+
+    def _insert_row(self, table_name, **kwargs):
+        not_null_keys = [table["constraints"].get("not_null", []) for table in self.parent.table_info if list(table["table"].keys())[0] == table_name][0]
+        for key in not_null_keys:
+            if key not in kwargs:
+                raise ValueError(f"Missing not null key '{key}'")
+            elif kwargs[key] is None:
+                raise ValueError(f"Key '{key}' is None")
+        keys = [key for key in kwargs.keys()]
+        values = [kwargs[key] for key in keys]
+        query = f"INSERT INTO {table_name} ({','.join(keys)}) VALUES ({', '.join(['?' for _ in range(len(keys))])})"
+        self.parent.cur.execute(query, tuple(values))
+        self.parent.cxn.commit()
+
+
 class DB:
     DB_PATH = "./data/database.db"
     cxn: Connection
@@ -125,6 +193,10 @@ class DB:
         self.cxn = connect(self.DB_PATH, check_same_thread=False)
         self.cur = self.cxn.cursor()
         self.get: Get = Get(self)
+        self.delete: Delete = Delete(self)
+        self.update: Update = Update(self)
+        self.insert: Insert = Insert(self)
+        self.insert.guilds(id=1, level_id=1)
 
     def update_table(self, table: str, data: str):
         try:
