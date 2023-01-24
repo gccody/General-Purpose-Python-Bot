@@ -31,12 +31,6 @@ async def start():
         await bot.load_extension(f"lib.cogs.{cog}")
         progress.next()
 
-        # @bot.event
-        # async def on_interaction(ctx: Interaction):
-        #     if isinstance(ctx.command, Command):
-        #         print('is Command')
-        #         raise BotNotReady()
-
         @bot.tree.error
         async def on_command_error(ctx: Interaction, exc) -> None:
             if any([isinstance(exc, error) for error in IGNORE_EXCEPTIONS]):
@@ -57,8 +51,8 @@ async def start():
                 await bot.send(ctx, embed=embed)
             elif isinstance(exc, NotFound):
                 await bot.send(ctx,
-                    embed=Embed(title='Not Found Error', description='One or more items could not be found.',
-                                colour=0xff0000))
+                               embed=Embed(title='Not Found Error', description='One or more items could not be found.',
+                                           colour=0xff0000))
             elif hasattr(exc, "original"):
                 if isinstance(exc.original, HTTPException):
                     embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
@@ -75,12 +69,6 @@ async def start():
 
     def exit_handler():
         bot.db.commit()
-        # try:
-        #     loop = asyncio.get_running_loop()
-        # except RuntimeError:
-        #     loop = asyncio.new_event_loop()
-        # loop.run_until_complete(bot.close())
-        # asyncio.run(bot.close())
 
     atexit.register(exit_handler)
     await bot.start(bot.config.token)
