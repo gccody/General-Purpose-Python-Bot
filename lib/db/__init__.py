@@ -1,14 +1,52 @@
 import re
-import sys
-import time
 from sqlite3 import Connection, Cursor, connect, Error
+from typing import List, Dict, Optional
 
 from lib.progress import Progress
+
+
+class Get:
+    def __init__(self, parent):
+        self.parent = parent
+        self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
+
+    def __getattribute__(self, name):
+        table_names = super().__getattribute__('_table_names')
+        if name in table_names:
+            _get_rows = super().__getattribute__('_get_rows')
+            return lambda **kwargs: _get_rows(name, **kwargs)
+        return super().__getattribute__(name)
+
+    def _get_rows(self, table_name: str, count: Optional[int] = None, **kwargs: Dict) -> List[object]:
+        if not kwargs:
+            query = f"SELECT * FROM {table_name}"
+        else:
+            query = f"SELECT * FROM {table_name} WHERE "
+            query += " AND ".join([f"{key}='{value}'" for key, value in kwargs.items()])
+        if count:
+            query += f" LIMIT {count}"
+            self.parent.cur.execute(query)
+        rows = self.parent.cur.fetchall()
+        for table in self.parent.table_info:
+            if list(table["table"].keys())[0] == table_name:
+                keys = list(table["table"][table_name].keys())
+                class_name = table_name
+                row_class = type(class_name, (object,), {})
+                return [self._create_row(row_class, keys, row) for row in rows]
+
+    def _create_row(self, row_class, keys, row):
+        new_row = row_class()
+        for i in range(len(keys)):
+            setattr(new_row, keys[i], row[i])
+        return new_row
+
 
 class DB:
     DB_PATH = "./data/database.db"
     cxn: Connection
     cur: Cursor
+    table_info: List[Dict[str, Dict[str, Dict[str, str | List[str]]]]]
+    table_names: List[str]
 
     table_info: list[dict[str, dict[str, dict[str, str | list[str]]]]] = [
         {
@@ -81,9 +119,12 @@ class DB:
         }
     ]
 
+    table_names: list[str] = []
+
     def __init__(self):
         self.cxn = connect(self.DB_PATH, check_same_thread=False)
         self.cur = self.cxn.cursor()
+        self.get: Get = Get(self)
 
     def update_table(self, table: str, data: str):
         try:
@@ -102,6 +143,7 @@ class DB:
         for table in self.table_info:
             table_data = table['table']
             for table_name, columns in table_data.items():
+                self.table_names.append(table_name)
                 create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name}("
                 constraints = table.get('constraints')
                 for column_name, data_type in columns.items():
@@ -145,24 +187,5 @@ class DB:
     def close(self) -> None:
         self.cxn.close()
 
-    def field(self, command, *values):
+    def run(self, command, *values) -> None:
         self.cur.execute(command, tuple(values))
-
-        if (fetch := self.cur.fetchone()) is not None:
-            return fetch[0]
-
-    def record(self, command, *values):
-        self.cur.execute(command, tuple(values))
-
-        return self.cur.fetchone()
-
-    def records(self, command, *values) -> list:
-        self.cur.execute(command, tuple(values))
-
-        return self.cur.fetchall()
-
-    def execute(self, command, *values) -> None:
-        self.cur.execute(command, tuple(values))
-
-    def multiexec(self, command, valueset) -> None:
-        self.cur.execute(command, valueset)
