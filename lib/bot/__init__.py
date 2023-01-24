@@ -54,6 +54,7 @@ class Bot(AutoShardedBot):
             print('Shards Not Ready')
             await asyncio.sleep(.5)
         self.register_guilds()
+        asyncio.ensure_future(self.monitor_shutdown())
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}")
         # asyncio.ensure_future(self.timer.start())
 
@@ -93,6 +94,20 @@ class Bot(AutoShardedBot):
             return await ctx.followup.send(*args, **kwargs)
         except NotFound:
             return await ctx.response.send_message(*args, **kwargs)
+
+    async def monitor_shutdown(self):
+        while True:
+            if psutil.Process().status() == psutil.STATUS_ZOMBIE:
+                # Perform cleanup actions, such as committing the database
+                self.db.commit()
+                break
+            if psutil.process_iter(['pid', 'name']):
+                for process in psutil.process_iter():
+                    if process.name() == 'shutdown.exe':
+                        self.db.commit()
+                        await self.close()
+                        exit()
+            await asyncio.sleep(1)
 
     def register_guilds(self):
         progress = Progress('Registering guilds', len(self.guilds))
