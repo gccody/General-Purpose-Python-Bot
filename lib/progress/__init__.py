@@ -46,7 +46,7 @@ class Progress:
         self.total = total
 
     def start(self):
-        sys.stdout.write(f"\r{self.msg} [{self.iteration}/{self.total}]")
+        sys.stdout.write(f"\r{self.msg} {self.iteration/self.total*100:.2f}%")
         sys.stdout.flush()
 
     def next(self):
@@ -54,7 +54,28 @@ class Progress:
             print(self.msg)
         self.iteration += 1
         if self.iteration > self.total: raise ValueError("Can't iterate more then the total")
-        sys.stdout.write(f"\r{self.msg} [{self.iteration}/{self.total}]")
+        sys.stdout.write(f"\r{self.msg} {self.iteration/self.total*100:.2f}%")
         sys.stdout.flush()
         if self.iteration == self.total:
             print("")
+
+
+class Loading:
+    def __init__(self, msg: str):
+        self.msg = msg
+        self.step = 0
+        self.pause = .5
+        self.done = False
+
+    async def start(self):
+        while not self.done:
+            sys.stdout.write(f"\r{self.msg}{'.'*((self.step%3)+1)}")
+            sys.stdout.flush()
+            self.step += 1
+            await asyncio.sleep(self.pause)
+            if self.done:
+                break
+        print("")
+
+    def stop(self):
+        self.done = True

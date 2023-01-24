@@ -104,7 +104,7 @@ class Insert:
                 raise ValueError(f"Key '{key}' is None")
         keys = [key for key in kwargs.keys()]
         values = [kwargs[key] for key in keys]
-        query = f"INSERT INTO {table_name} ({','.join(keys)}) VALUES ({', '.join(['?' for _ in range(len(keys))])})"
+        query = f"INSERT OR IGNORE INTO {table_name} ({','.join(keys)}) VALUES ({', '.join(['?' for _ in range(len(keys))])})"
         self.parent.cur.execute(query, tuple(values))
         self.parent.cxn.commit()
 
