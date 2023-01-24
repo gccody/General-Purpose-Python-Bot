@@ -73,9 +73,14 @@ async def start():
             else:
                 raise exc
 
-    async def exit_handler():
+    def exit_handler():
         bot.db.commit()
-        await bot.close()
+        # try:
+        #     loop = asyncio.get_running_loop()
+        # except RuntimeError:
+        #     loop = asyncio.new_event_loop()
+        # loop.run_until_complete(bot.close())
+        # asyncio.run(bot.close())
 
     atexit.register(exit_handler)
     await bot.start(bot.config.token)

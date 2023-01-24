@@ -33,7 +33,7 @@ class Announce(Cog):
         if not channel.permissions_for(await ctx.guild.fetch_member(self.bot.user.id)).send_messages:
             return await ctx.response.send_message(
                 Embed(title=f">>> I can't send messages in channel: {channel.name} ({channel.id})", colour=0xff0000))
-        self.bot.db.execute("""UPDATE guilds SET a_id=? WHERE id=?""", channel.id, ctx.guild.id)
+        self.bot.db.run("""UPDATE guilds SET a_id=? WHERE id=?""", channel.id, ctx.guild.id)
         print('here at send')
         await self.bot.send(ctx, embed=Embed(
             title=f">>> Successfully Enabled Announcements in {channel.mention} ({channel.id})"))
@@ -41,7 +41,7 @@ class Announce(Cog):
     @announce.command(name='disable', description='Disable bot announcements')
     @has_guild_permissions(manage_guild=True)
     async def announce_disable(self, ctx: Interaction):
-        self.bot.db.execute("""UPDATE guilds SET a_id=?""")
+        self.bot.db.run("""UPDATE guilds SET a_id=?""")
         await self.bot.send(ctx,
                             embed=Embed(title=f">>> Successfully Disabled Announcements"))
 

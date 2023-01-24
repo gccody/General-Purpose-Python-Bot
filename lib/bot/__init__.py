@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 from datetime import datetime
-from http.client import HTTPException
 import random
 from typing import Any
 
@@ -10,19 +9,15 @@ import discord
 import psutil
 import tzlocal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from discord import Guild, app_commands, Interaction, VoiceChannel, TextChannel, Message
-from discord.app_commands import errors, Command
+from discord import Guild, Interaction, VoiceChannel
+from discord.app_commands import Command
 from discord.embeds import Embed
 from discord.errors import NotFound
-from discord.ext.commands import AutoShardedBot, Context
-from discord import AutoShardedClient
-from discord.ext.commands._types import BotT
-from discord.ext.commands.errors import CommandNotFound, BadArgument, MissingRequiredArgument, CommandOnCooldown, \
-    MissingPermissions, BotMissingPermissions
+from discord.ext.commands import AutoShardedBot
+from discord.ext.commands.errors import CommandNotFound, BadArgument
 
 from lib.config import Config
 from lib.db import DB
-from lib.errors import BotNotReady
 from lib.progress import Progress, Timer
 from lib.urban import UrbanDictionary
 
@@ -56,6 +51,7 @@ class Bot(AutoShardedBot):
     async def on_connect(self):
         await self.tree.sync()
         while not self.shards_ready:
+            print('Shards Not Ready')
             await asyncio.sleep(.5)
         self.register_guilds()
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}")
@@ -73,7 +69,7 @@ class Bot(AutoShardedBot):
         if isinstance(ctx.command, Command):
             name_list, options = self.get_name(ctx.data, [])
             name = " ".join(name_list)
-            self.db.execute(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
+            self.db.run(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
                             ctx.user.id, json.dumps(options), datetime.now().timestamp())
 
     @staticmethod
@@ -100,21 +96,22 @@ class Bot(AutoShardedBot):
     def register_guilds(self):
         progress = Progress('Registering guilds', len(self.guilds))
         for guild in self.guilds:
-            self.db.execute("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
+            self.db.run("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
             progress.next()
 
-        for guild in self.db.records("""SELECT * FROM guilds"""):
+        for guild in self.db.get.guilds():
             if not self.get_guild(guild.id):
-                self.db.execute("""DELETE FROM guilds WHERE id=?""", guild.id)
+                self.db.run("""DELETE FROM guilds WHERE id=?""", guild.id)
         self.db.commit()
         self.ready = True
+        print('End')
         self.tasks.start()
 
     async def on_guild_join(self, guild: Guild):
-        self.db.execute("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
+        self.db.run("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
 
     async def on_guild_remove(self, guild: Guild):
-        self.db.execute("""DELETE FROM guilds WHERE id=?""", guild.id)
+        self.db.run("""DELETE FROM guilds WHERE id=?""", guild.id)
 
     def get_name(self, data: Any, groups: list[str]):
         if isinstance(data, dict):
