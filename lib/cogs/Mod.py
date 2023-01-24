@@ -85,8 +85,7 @@ class Mod(Cog):
         elif isinstance(member, User):
             await ctx.guild.ban(user=member, delete_message_days=self.days[delete_messages] if delete_messages else 0,
                                 reason=f"{reason} | {ctx.user.display_name}#{ctx.user.discriminator}")
-        self.bot.db.run("""INSERT INTO bans VALUES (?,?,?,?,?)""", ctx.guild_id, member.id, ctx.user.id, reason,
-                            datetime.now().timestamp())
+        self.bot.db.insert.bans(guild_id=ctx.guild_id, user_id=member.id, mod_id=ctx.user.id, reason=reason, ts=datetime.now().timestamp())
         embed = Embed(title=f"✅ | {member.display_name}#{member.discriminator} ({member.id}) has been banned")
         await ctx.response.send_message(embed=embed)
 
@@ -107,7 +106,7 @@ class Mod(Cog):
         # Member is not part of the guild
         elif isinstance(member, User):
             await ctx.guild.unban(user=member, reason=reason)
-        self.bot.db.run("""DELETE FROM bans WHERE guild_id=? AND user_id=? """, ctx.guild_id, member.id)
+        self.bot.db.delete.bans(guild_id=ctx.guild_id, user_id=member.id)
         await ctx.response.send_message(
             embed=Embed(title=f"✅ | {member.display_name}#{member.discriminator} ({member.id}) has been unbanned"))
 
@@ -141,8 +140,8 @@ class Mod(Cog):
                 continue
             await member.ban(delete_message_days=self.days[delete_messages],
                              reason=f"{reason} | {ctx.user.display_name}#{ctx.user.discriminator}")
-            self.bot.db.run("""INSERT INTO bans VALUES (?,?,?,?,?)""", ctx.guild_id, member.id, ctx.user.id, reason,
-                                datetime.now().timestamp())
+            self.bot.db.insert.bans(guild_id=ctx.guild_id, user_id=member.id, mod_id=ctx.user.id, reason=reason,
+                                    ts=datetime.now().timestamp())
             success.append(f"{member.display_name}#{member.discriminator} ({id})")
         embed = Embed()
         s_users = "\n".join(success)
@@ -177,7 +176,7 @@ class Mod(Cog):
                 continue
 
             await member.unban(reason=f"{reason} | {ctx.user.display_name}#{ctx.user.discriminator}")
-            self.bot.db.run("""DELETE FROM bans WHERE guild_id=? AND user_id=? """, ctx.guild_id, member.id)
+            self.bot.db.delete.bans(guild_id=ctx.guild_id, user_id=member.id)
             success.append(f"{member.display_name}#{member.discriminator} ({id})")
         embed = Embed()
         s_users = "\n".join(success)
