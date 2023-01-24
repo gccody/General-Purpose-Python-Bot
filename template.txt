@@ -16,18 +16,3 @@ class Class(Cog):
 
 async def setup(bot):
     await bot.add_cog(Class(bot))
-
-
-        commands = self.all().get('commands')
-        print(commands)
-
-    def all(self):
-        def bans():
-            self.cur.execute("""SELECT * FROM bans""")
-            return self.cur.fetchall()
-
-        def commands():
-            query = """SELECT * FROM commands"""
-            self.cur.execute(query)
-            return self.cur.fetchall()
-        return {'bans': bans(), 'commands': commands()}
