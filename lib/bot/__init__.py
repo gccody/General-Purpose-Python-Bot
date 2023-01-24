@@ -69,8 +69,9 @@ class Bot(AutoShardedBot):
         if isinstance(ctx.command, Command):
             name_list, options = self.get_name(ctx.data, [])
             name = " ".join(name_list)
-            self.db.run(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
-                            ctx.user.id, json.dumps(options), datetime.now().timestamp())
+            self.db.insert.commands(command_name=name, guild_id=ctx.guild_id, user_id=ctx.user.id, params=json.dumps(options), ts=datetime.now().timestamp())
+            # self.db.run(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
+            #                 ctx.user.id, json.dumps(options), datetime.now().timestamp())
 
     @staticmethod
     async def send(ctx: Interaction, *args, **kwargs):
@@ -96,22 +97,22 @@ class Bot(AutoShardedBot):
     def register_guilds(self):
         progress = Progress('Registering guilds', len(self.guilds))
         for guild in self.guilds:
-            self.db.run("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
+            self.db.insert.guilds(id=guild.id)
             progress.next()
 
         for guild in self.db.get.guilds():
             if not self.get_guild(guild.id):
-                self.db.run("""DELETE FROM guilds WHERE id=?""", guild.id)
+                self.db.delete.guilds(id=guild.id)
         self.db.commit()
         self.ready = True
         print('End')
         self.tasks.start()
 
     async def on_guild_join(self, guild: Guild):
-        self.db.run("""INSERT OR IGNORE INTO guilds VALUES (?,?,?)""", guild.id, None, None)
+        self.db.insert.guilds(id=guild.id)
 
     async def on_guild_remove(self, guild: Guild):
-        self.db.run("""DELETE FROM guilds WHERE id=?""", guild.id)
+        self.db.delete.guilds(id=guild.id)
 
     def get_name(self, data: Any, groups: list[str]):
         if isinstance(data, dict):

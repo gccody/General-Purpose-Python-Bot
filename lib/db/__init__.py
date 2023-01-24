@@ -196,7 +196,6 @@ class DB:
         self.delete: Delete = Delete(self)
         self.update: Update = Update(self)
         self.insert: Insert = Insert(self)
-        self.insert.guilds(id=1, level_id=1)
 
     def update_table(self, table: str, data: str):
         try:

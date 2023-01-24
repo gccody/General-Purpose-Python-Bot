@@ -47,8 +47,7 @@ class Youtube(Cog):
             latest_video_url = "https://www.youtube.com/watch?v=" + re.search('(?<="videoId":").*?(?=")', html).group()
         except AttributeError:
             latest_video_url = ""
-        self.bot.db.run("""INSERT INTO youtube VALUES (?,?,?,?)""", handle, ctx.guild_id,
-                            message if message else f"@{handle} has uploaded a video", latest_video_url)
+        self.bot.db.insert.youtube(handle=handle, guild_id=ctx.guild_id, message=message if message else f"@{handle} has uploaded a video", latest_url=latest_video_url)
         await ctx.response.send_message(embed=Embed(title=f'✅ | Waiting for @{handle} to post more videos'))
         self.bot.tasks.add_job(id=f"{handle}|{ctx.guild_id}", args=(handle, message, ctx.guild_id,), trigger='interval',
                                minutes=1)
