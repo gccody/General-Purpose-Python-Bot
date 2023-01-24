@@ -48,7 +48,7 @@ class Fun(Cog):
             'Signs point to no',
             'Most likely not',
         ]
-        await ctx.response.send_message(embed=Embed(title=f':8ball: | {random.choice(responses)}, {ctx.user.display_name}'))
+        await self.bot.send(ctx, embed=Embed(title=f':8ball: | {random.choice(responses)}, {ctx.user.display_name}'))
 
     @app_commands.command(name='embed')
     @app_commands.describe(title='Title of embed', title_url='Url embeded into title', author='Author of the embed')

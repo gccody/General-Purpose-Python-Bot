@@ -5,7 +5,7 @@ import discord
 from discord import app_commands, Interaction
 from discord.embeds import Embed
 from discord.errors import NotFound
-from discord.ext.commands import Cog
+from discord.ext.commands import Cog, Greedy
 from discord.member import Member
 from discord.permissions import Permissions
 from discord.user import User
@@ -85,38 +85,43 @@ class Mod(Cog):
         elif isinstance(member, User):
             await ctx.guild.ban(user=member, delete_message_days=self.days[delete_messages] if delete_messages else 0,
                                 reason=f"{reason} | {ctx.user.display_name}#{ctx.user.discriminator}")
-        self.bot.db.insert.bans(guild_id=ctx.guild_id, user_id=member.id, mod_id=ctx.user.id, reason=reason, ts=datetime.now().timestamp())
+        self.bot.db.insert.bans(guild_id=ctx.guild_id, user_id=member.id, mod_id=ctx.user.id, reason=reason,
+                                ts=datetime.now().timestamp())
         embed = Embed(title=f"✅ | {member.display_name}#{member.discriminator} ({member.id}) has been banned")
         await ctx.response.send_message(embed=embed)
 
     @ban.command(name="remove", description="Unban a user from guild")
-    @app_commands.describe(member="Member to unban", reason="Reason to unban member")
+    @app_commands.describe(id="ID of the user", reason="Reason to unban member")
     @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.checks.bot_has_permissions(ban_members=True)
-    async def ban_remove(self, ctx: Interaction, member: discord.Member, reason: Optional[str] = "No reason provided"):
+    async def ban_remove(self, ctx: Interaction, id: str, reason: Optional[str] = "No reason provided"):
+        if id.isalpha():
+            return await self.bot.send(ctx, embed=Embed(title=f":x: | Please send a proper id", colour=0xff0000))
+        try: # Get the member
+            member: User = await self.bot.fetch_user(int(id))
+        except NotFound:
+            return await self.bot.send(ctx, embed=Embed(title=f":x: | User with the id '{id}' does not exist",
+                                                        colour=0xff0000))
         try:  # Check if the member is already banned
             await ctx.guild.fetch_ban(member)
         except NotFound:  # Not banned so move on
             return await ctx.response.send_message(
                 embed=Embed(title=f":x: | That member is already unbanned", colour=0xff0000))
-
-        # Member is a part of the guild
-        if isinstance(member, Member):
-            await member.unban(reason=reason)
-        # Member is not part of the guild
-        elif isinstance(member, User):
-            await ctx.guild.unban(user=member, reason=reason)
+        await ctx.guild.unban(user=member, reason=reason)
         self.bot.db.delete.bans(guild_id=ctx.guild_id, user_id=member.id)
         await ctx.response.send_message(
             embed=Embed(title=f"✅ | {member.display_name}#{member.discriminator} ({member.id}) has been unbanned"))
 
     @massban.command(name="add", description="Mass ban users from guild")
     @app_commands.rename(str_members='members')
-    @app_commands.describe(str_members="Space separated list of member ids", delete_messages="How much of their recent messages to delete", reason="Reason to ban members")
+    @app_commands.describe(str_members="Space separated list of member ids",
+                           delete_messages="How much of their recent messages to delete",
+                           reason="Reason to ban members")
     # @app_commands.autocomplete(delete_messages=get_days)
     @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.checks.bot_has_permissions(ban_members=True)
-    async def massban_add(self, ctx: Interaction, str_members: str, delete_messages: Optional[str], reason: Optional[str] = "No Reason provided"):
+    async def massban_add(self, ctx: Interaction, str_members: str, delete_messages: Optional[str],
+                          reason: Optional[str] = "No Reason provided"):
         failed = []
         success = []
         banned_already = []
@@ -241,10 +246,12 @@ class Mod(Cog):
         await ctx.response.send_message(embed=embed)
 
     @mute.command(name="add", description="Mute a user in the guild")
-    @app_commands.describe(member='Member to mute', minutes='Minutes to mute', reason='Reason to mute member') #moderate_members
+    @app_commands.describe(member='Member to mute', minutes='Minutes to mute',
+                           reason='Reason to mute member')  # moderate_members
     @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.checks.bot_has_permissions(moderate_members=True)
-    async def mute_add(self, ctx: Interaction, member: discord.Member, minutes: app_commands.Range[float, .1], reason: Optional[str] = "No reason provided"):
+    async def mute_add(self, ctx: Interaction, member: discord.Member, minutes: app_commands.Range[float, .1],
+                       reason: Optional[str] = "No reason provided"):
 
         # Check if the member is a member
         # Check if the members role position is lower than your role position
@@ -299,10 +306,12 @@ class Mod(Cog):
 
     @massmute.command(name="add", description="Mass mute users from guild")
     @app_commands.rename(str_members='members')
-    @app_commands.describe(str_members="Space separated list of member ids", minutes="Minutes to mute", reason="Reason to mute members")
+    @app_commands.describe(str_members="Space separated list of member ids", minutes="Minutes to mute",
+                           reason="Reason to mute members")
     @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.checks.bot_has_permissions(moderate_members=True)
-    async def massmute_add(self, ctx: Interaction, str_members: str, minutes: app_commands.Range[float, .1], reason: Optional[str]):
+    async def massmute_add(self, ctx: Interaction, str_members: str, minutes: app_commands.Range[float, .1],
+                           reason: Optional[str]):
         failed = []
         success = []
         muted_already = []
@@ -376,10 +385,12 @@ class Mod(Cog):
         pass
 
     @purge.command(name='all', description='Removes all messages')
-    @app_commands.describe(limit="Amount of messages to purge 1-1000. Default 100", reason="Reason for deleting messages") #manage_messages=True, read_message_history=True
+    @app_commands.describe(limit="Amount of messages to purge 1-1000. Default 100",
+                           reason="Reason for deleting messages")  # manage_messages=True, read_message_history=True
     @app_commands.checks.has_permissions(manage_messages=True, read_message_history=True)
     @app_commands.checks.bot_has_permissions(manage_messages=True, read_message_history=True)
-    async def purge_all(self, ctx: Interaction, limit: Optional[app_commands.Range[int, 1, 1000]] = 100, reason: Optional[str] = "No reason provided"):
+    async def purge_all(self, ctx: Interaction, limit: Optional[app_commands.Range[int, 1, 1000]] = 100,
+                        reason: Optional[str] = "No reason provided"):
         await ctx.response.defer()
         messages = await ctx.channel.purge(limit=limit, before=discord.utils.snowflake_time(ctx.id),
                                            reason=reason)
@@ -388,10 +399,12 @@ class Mod(Cog):
         await msg.delete(delay=3)
 
     @purge.command(name='bot', description='Removes all bot messages')
-    @app_commands.describe(limit="Amount of messages to purge 1-1000. Default 100", reason="Reason for deleting messages")
+    @app_commands.describe(limit="Amount of messages to purge 1-1000. Default 100",
+                           reason="Reason for deleting messages")
     @app_commands.checks.has_permissions(manage_messages=True, read_message_history=True)
     @app_commands.checks.bot_has_permissions(manage_messages=True, read_message_history=True)
-    async def purge_bot(self, ctx: Interaction, limit: Optional[app_commands.Range[int, 1, 1000]] = 100, reason: Optional[str] = "No reason provided"):
+    async def purge_bot(self, ctx: Interaction, limit: Optional[app_commands.Range[int, 1, 1000]] = 100,
+                        reason: Optional[str] = "No reason provided"):
         await ctx.response.defer()
         messages = await ctx.channel.purge(limit=limit, before=discord.utils.snowflake_time(ctx.id),
                                            reason=reason, check=lambda message: message.author.bot)
@@ -400,10 +413,13 @@ class Mod(Cog):
         await msg.delete(delay=3)
 
     @purge.command(name='user', description='Purge messages from a channel')
-    @app_commands.describe(target="User to target", limit="Amount of messages to purge 1-1000. Default 100", reason="Reason for deleting messages")
+    @app_commands.describe(target="User to target", limit="Amount of messages to purge 1-1000. Default 100",
+                           reason="Reason for deleting messages")
     @app_commands.checks.has_permissions(manage_messages=True, read_message_history=True)
     @app_commands.checks.bot_has_permissions(manage_messages=True, read_message_history=True)
-    async def purge_user(self, ctx: Interaction, target: discord.Member, limit: Optional[app_commands.Range[int, 1, 1000]] = 100, reason: Optional[str] = "No reason provided"):
+    async def purge_user(self, ctx: Interaction, target: discord.Member,
+                         limit: Optional[app_commands.Range[int, 1, 1000]] = 100,
+                         reason: Optional[str] = "No reason provided"):
         await ctx.response.defer()
         messages = await ctx.channel.purge(limit=limit, before=discord.utils.snowflake_time(ctx.id),
                                            reason=reason, check=lambda message: message.user.id == target.id)
@@ -416,7 +432,9 @@ class Mod(Cog):
     @app_commands.describe(string='String to target', limit="Amount of messages to purge 1-1000. Default 100")
     @app_commands.checks.has_permissions(manage_messages=True, read_message_history=True)
     @app_commands.checks.bot_has_permissions(manage_messages=True, read_message_history=True)
-    async def purge_contains(self, ctx: Interaction, string: str, limit: Optional[app_commands.Range[int, 1, 1000]] = 100, reason: Optional[str] = "No reason provided"):
+    async def purge_contains(self, ctx: Interaction, string: str,
+                             limit: Optional[app_commands.Range[int, 1, 1000]] = 100,
+                             reason: Optional[str] = "No reason provided"):
         await ctx.response.defer()
         messages = await ctx.channel.purge(limit=limit, before=discord.utils.snowflake_time(ctx.id),
                                            reason=reason,
@@ -426,10 +444,12 @@ class Mod(Cog):
         await msg.delete(delay=3)
 
     @purge.command(name='human', description='Removes all non-bot messages')
-    @app_commands.describe(limit="Amount of messages to purge 1-1000. Default 100", reason="Reason for deleting messages")
+    @app_commands.describe(limit="Amount of messages to purge 1-1000. Default 100",
+                           reason="Reason for deleting messages")
     @app_commands.checks.has_permissions(manage_messages=True, read_message_history=True)
     @app_commands.checks.bot_has_permissions(manage_messages=True, read_message_history=True)
-    async def purge_human(self, ctx: Interaction, limit: Optional[app_commands.Range[int, 1, 1000]] = 100, reason: Optional[str] = "No reason provided"):
+    async def purge_human(self, ctx: Interaction, limit: Optional[app_commands.Range[int, 1, 1000]] = 100,
+                          reason: Optional[str] = "No reason provided"):
         await ctx.response.defer()
         messages = await ctx.channel.purge(limit=limit, before=discord.utils.snowflake_time(ctx.id),
                                            reason=reason,

@@ -1,13 +1,14 @@
 import asyncio
 import atexit
 import glob
+import math
 from http.client import HTTPException
 
 import discord
 import numpy as np
 import requests
 from discord import Embed, NotFound, Interaction
-from discord.app_commands import CommandOnCooldown, MissingPermissions, BotMissingPermissions
+from discord.app_commands import CommandOnCooldown, MissingPermissions, BotMissingPermissions, TransformerError
 
 from lib.bot import Bot, IGNORE_EXCEPTIONS
 from lib.config import Config
@@ -19,8 +20,10 @@ VERSION = "0.0.1"
 config = Config()
 TOTAL_GUILDS = len(requests.get("https://discord.com/api/v9/users/@me/guilds",
                                 headers={"Authorization": f"Bot {config.token}"}).json())
-SHARDS_LIST: list[int] = list(range(round((TOTAL_GUILDS / 1000) + 1)))
-CLUSTERS = round((len(SHARDS_LIST) / 2) + 1)
+GUILDS_PER_SHARD = 1000
+SHARDS_PER_CLUSTER = 100
+SHARDS_LIST: list[int] = list(range(math.ceil(TOTAL_GUILDS / GUILDS_PER_SHARD)))
+CLUSTERS = math.ceil(len(SHARDS_LIST) / SHARDS_PER_CLUSTER)
 SHARDS_SPLIT: list[np.ndarray[int]] = np.array_split(SHARDS_LIST, CLUSTERS)
 
 
@@ -37,7 +40,7 @@ async def start():
                 pass
             elif isinstance(exc, CommandOnCooldown):
                 embed: Embed = Embed(title='Command on Cooldown',
-                                     description=f"That command is on cooldown. Try again in {exc.retry_after:,.2f} seconds.",
+                                     description=f">>> That command is on cooldown. Try again in {exc.retry_after:,.2f} seconds.",
                                      colour=0xff0000)
                 await bot.send(ctx, embed=embed)
             elif isinstance(exc, MissingPermissions):
@@ -47,18 +50,21 @@ async def start():
                 embed: Embed = Embed(title='Bot Missing Permissions', description=f">>> {exc}", colour=0xff0000)
                 await bot.send(ctx, embed=embed)
             elif isinstance(exc, HTTPException):
-                embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
+                embed: Embed = Embed(title="Http Error", description='>>> Message failed to send', colour=0xff0000)
                 await bot.send(ctx, embed=embed)
             elif isinstance(exc, NotFound):
                 await bot.send(ctx,
-                               embed=Embed(title='Not Found Error', description='One or more items could not be found.',
+                               embed=Embed(title='Not Found Error', description='>>> One or more items could not be found.',
                                            colour=0xff0000))
+            elif isinstance(exc, TransformerError):
+                await bot.send(ctx,
+                               embed=Embed(title=':x: | Enter in the correct format', colour=0xff0000))
             elif hasattr(exc, "original"):
                 if isinstance(exc.original, HTTPException):
-                    embed: Embed = Embed(title="Http Error", description='Message failed to send', colour=0xff0000)
+                    embed: Embed = Embed(title="Http Error", description='>>> Message failed to send', colour=0xff0000)
                     await bot.send(ctx, embed=embed)
                 if isinstance(exc.original, discord.Forbidden):
-                    embed: Embed = Embed(title='Forbidden Error', description='Insufficient Permissions',
+                    embed: Embed = Embed(title='Forbidden Error', description='>>> Insufficient Permissions',
                                          colour=0xff0000)
                     await bot.send(ctx, embed=embed)
                 else:

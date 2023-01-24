@@ -24,7 +24,7 @@ class Pagination(discord.ui.View):
     async def start(self, ctx: discord.Interaction, pages: list[discord.Embed]):
 
         for embed in pages:
-            if not isinstance(embed.colour, discord.Colour):
+            if embed.colour is None:
                 color = int("0x" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)]), 16)
                 embed.colour = color
             embed.set_footer(text="Made by Gccody")
