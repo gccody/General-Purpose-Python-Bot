@@ -36,7 +36,7 @@ class Youtube(Cog):
             elif res.status not in range(200, 300):
                 return await ctx.response.send_message(embed=Embed(title=':x: | Something went wrong', colour=0xff0000))
 
-            user = self.bot.db.get.youtube(handle=handle, guild_id=ctx.guild_id)
+            user = await self.bot.db.get.youtube(handle=handle, guild_id=ctx.guild_id)
             if user:
                 return await ctx.response.send_message(embed=Embed(title=':x: | Already watching for new videos', colour=0xff0000))
 
@@ -47,7 +47,7 @@ class Youtube(Cog):
             latest_video_url = "https://www.youtube.com/watch?v=" + re.search('(?<="videoId":").*?(?=")', html).group()
         except AttributeError:
             latest_video_url = ""
-        self.bot.db.insert.youtube(handle=handle, guild_id=ctx.guild_id, message=message if message else f"@{handle} has uploaded a video", latest_url=latest_video_url)
+        await self.bot.db.insert.youtube(handle=handle, guild_id=ctx.guild_id, message=message if message else f"@{handle} has uploaded a video", latest_url=latest_video_url)
         await ctx.response.send_message(embed=Embed(title=f'✅ | Waiting for @{handle} to post more videos'))
         self.bot.tasks.add_job(id=f"{handle}|{ctx.guild_id}", args=(handle, message, ctx.guild_id,), trigger='interval',
                                minutes=1)
