@@ -3,6 +3,7 @@ import atexit
 import glob
 import math
 from http.client import HTTPException
+from signal import signal, SIGINT, SIGTERM
 
 import discord
 import numpy as np
@@ -73,10 +74,13 @@ async def start():
             else:
                 raise exc
 
-    async def exit_handler():
-        asyncio.run(bot.db.commit())
-
-    atexit.register(asyncio.run, (exit_handler,))
+    def close():
+        bot.loop.run_until_complete(bot.close())
+        bot.loop.stop()
+        bot.loop.close()
+        exit()
+    atexit.register(close)
+    # signal(SIGINT, close)
     await bot.db.build()
     await bot.start(bot.config.token)
 
