@@ -1,8 +1,8 @@
 import asyncio
 import json
 import os
-from datetime import datetime
 import random
+from datetime import datetime
 from typing import Any
 
 import discord
@@ -10,28 +10,37 @@ import psutil
 import tzlocal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from discord import Guild, Interaction, VoiceChannel
-from discord.app_commands import Command, CommandOnCooldown, MissingPermissions, BotMissingPermissions
+from discord.app_commands import Command
 from discord.embeds import Embed
-from discord.errors import NotFound, HTTPException, InteractionResponded
+from discord.errors import NotFound, InteractionResponded
 from discord.ext.commands import AutoShardedBot
 from discord.ext.commands.errors import CommandNotFound, BadArgument
-from discord import AutoShardedClient
 
 from lib.config import Config
 from lib.db import DB
-from lib.errors import BotNotReady
-from lib.progress import Progress, Timer, Loading
+from lib.progress import Progress, Timer
 from lib.urban import UrbanDictionary
 
 COMMAND_ERROR_REGEX = r"Command raised an exception: (.*?(?=: )): (.*)"
 IGNORE_EXCEPTIONS = (CommandNotFound, BadArgument, RuntimeError)
 
 
+def synchronize_async_helper(to_await):
+    async_response = []
+
+    async def run_and_capture_result():
+        r = await to_await
+        async_response.append(r)
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_and_capture_result())
+    return async_response[0]
+
+
 class Bot(AutoShardedBot):
     def __init__(self, shards: list[int], version: str):
         self.config: Config = Config()
         self.db: DB = DB()
-        self.db.build()
         self.cache: dict = dict()
         self.tasks = AsyncIOScheduler(timezone=str(tzlocal.get_localzone()))
         self.shards_ready = False
@@ -55,10 +64,10 @@ class Bot(AutoShardedBot):
             await asyncio.sleep(.5)
         self.tree.copy_global_to(guild=discord.Object(id="1064582321728143421"))
         await self.tree.sync(guild=discord.Object(id="1064582321728143421"))
-        self.register_guilds()
+        await self.register_guilds()
         asyncio.ensure_future(self.monitor_shutdown())
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}")
-        # asyncio.ensure_future(self.timer.start())
+        asyncio.ensure_future(self.timer.start())
 
     async def on_shard_ready(self, shard_id):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
@@ -72,11 +81,10 @@ class Bot(AutoShardedBot):
         if isinstance(ctx.command, Command):
             name_list, options = self.get_name(ctx.data, [])
             name = " ".join(name_list)
-            self.db.insert.commands(command_name=name, guild_id=ctx.guild_id, user_id=ctx.user.id, params=json.dumps(options), ts=datetime.now().timestamp())
-            self.db.run(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
-                            ctx.user.id, json.dumps(options), datetime.now().timestamp())
-
-
+            self.db.insert.commands(command_name=name, guild_id=ctx.guild_id, user_id=ctx.user.id,
+                                    params=json.dumps(options), ts=datetime.now().timestamp())
+            await self.db.run(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
+                              ctx.user.id, json.dumps(options), datetime.now().timestamp())
 
     @staticmethod
     async def send(ctx: Interaction, *args, **kwargs):
@@ -87,7 +95,6 @@ class Bot(AutoShardedBot):
                 embed.colour = color
             embed.set_footer(text="Made by Gccody")
             embed.timestamp = datetime.now()
-            # embed.set_thumbnail(url=self.logo_path)
             kwargs['embed'] = embed
 
         if ctx.is_expired():
@@ -105,28 +112,27 @@ class Bot(AutoShardedBot):
     async def monitor_shutdown(self):
         while True:
             if psutil.Process().status() == psutil.STATUS_ZOMBIE:
-                # Perform cleanup actions, such as committing the database
-                self.db.commit()
+                await self.db.commit()
                 break
             if psutil.process_iter(['pid', 'name']):
                 for process in psutil.process_iter():
                     if process.name() == 'shutdown.exe':
-                        self.db.commit()
+                        await self.db.commit()
                         await self.close()
                         exit()
             await asyncio.sleep(1)
 
-    def register_guilds(self):
+    async def register_guilds(self):
         progress = Progress('Registering guilds', len(self.guilds))
         progress.start()
         for guild in self.guilds:
-            self.db.insert.guilds(id=guild.id)
+            await self.db.insert.guilds(id=guild.id)
             progress.next()
 
-        for guild in self.db.get.guilds():
+        for guild in (await self.db.get.guilds()):
             if not self.get_guild(guild.id):
-                self.db.delete.guilds(id=guild.id)
-        self.db.commit()
+                await self.db.delete.guilds(id=guild.id)
+        await self.db.commit()
         self.ready = True
         self.tasks.start()
 

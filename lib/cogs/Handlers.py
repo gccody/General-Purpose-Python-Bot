@@ -20,7 +20,7 @@ class Handler(Cog):
         # if isinstance(ctx.command, discord.app_commands.Command):
         #     name_list, options = self.bot.get_name(ctx.data, [])
         #     name = " ".join(name_list)
-            # self.bot.db.run(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
+            # await self.bot.db.run(f"""INSERT INTO commands VALUES (?,?,?,?,?)""", name, ctx.guild_id,
             #                     ctx.user.id, json.dumps(options), datetime.now().timestamp())
 
 

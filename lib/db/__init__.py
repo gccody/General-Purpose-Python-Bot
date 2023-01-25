@@ -1,23 +1,25 @@
+import asyncio
 import re
-from sqlite3 import Connection, Cursor, connect, Error
+from aiosqlite import Connection, Cursor, connect, Error
 from typing import List, Dict, Optional
 
 from lib.progress import Progress
+from lib.utils import asyncio_run
 
 
 class Get:
     def __init__(self, parent):
-        self.parent = parent
+        self.parent: DB = parent
         self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
 
     def __getattribute__(self, name):
         table_names = super().__getattribute__('_table_names')
         if name in table_names:
             _get_rows = super().__getattribute__('_get_rows')
-            return lambda **kwargs: _get_rows(name, **kwargs)
+            return lambda **kwargs: asyncio.ensure_future(_get_rows(name, **kwargs))
         return super().__getattribute__(name)
 
-    def _get_rows(self, table_name: str, count: Optional[int] = None, **kwargs: Dict) -> List[object]:
+    async def _get_rows(self, table_name: str, count: Optional[int] = None, **kwargs: Dict) -> List[object]:
         if not kwargs:
             query = f"SELECT * FROM {table_name}"
         else:
@@ -25,8 +27,8 @@ class Get:
             query += " AND ".join([f"{key}='{value}'" for key, value in kwargs.items()])
         if count:
             query += f" LIMIT {count}"
-            self.parent.cur.execute(query)
-        rows = self.parent.cur.fetchall()
+        await self.parent.cur.execute(query)
+        rows = await self.parent.cur.fetchall()
         for table in self.parent.table_info:
             if list(table["table"].keys())[0] == table_name:
                 keys = list(table["table"][table_name].keys())
@@ -43,59 +45,59 @@ class Get:
 
 class Delete:
     def __init__(self, parent):
-        self.parent = parent
+        self.parent: DB = parent
         self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
 
     def __getattribute__(self, name):
         table_names = super().__getattribute__('_table_names')
         if name in table_names:
             _delete_rows = super().__getattribute__('_delete_rows')
-            return lambda **kwargs: _delete_rows(name, **kwargs)
+            return lambda **kwargs: asyncio.ensure_future(_delete_rows(name, **kwargs))
         return super().__getattribute__(name)
 
-    def _delete_rows(self, table_name, **kwargs):
+    async def _delete_rows(self, table_name, **kwargs):
         if not kwargs:
             raise ValueError("You must provide at least one argument to delete a row.")
         else:
             query = f"DELETE FROM {table_name} WHERE "
             query += " AND ".join([f"{key}='{value}'" for key, value in kwargs.items()])
-            self.parent.cur.execute(query)
-        self.parent.cxn.commit()
+            await self.parent.cur.execute(query)
+            await self.parent.cxn.commit()
 
 
 class Update:
     def __init__(self, parent):
-        self.parent = parent
+        self.parent: DB = parent
         self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
 
     def __getattribute__(self, name):
         table_names = super().__getattribute__('_table_names')
         if name in table_names:
             _update_rows = super().__getattribute__('_update_rows')
-            return lambda **kwargs: _update_rows(name, **kwargs)
+            return lambda **kwargs: asyncio.ensure_future(_update_rows(name, **kwargs))
         return super().__getattribute__(name)
 
-    def _update_rows(self, table_name, where, set_data):
+    async def _update_rows(self, table_name, where, set_data):
         query = f"UPDATE {table_name} SET "
         query += ",".join([f"{key}='{value}'" for key, value in set_data.items()])
         query += f" WHERE {where}"
-        self.parent.cur.execute(query)
-        self.parent.cxn.commit()
+        await self.parent.cur.execute(query)
+        await self.parent.cxn.commit()
 
 
 class Insert:
     def __init__(self, parent):
-        self.parent = parent
+        self.parent: DB = parent
         self._table_names = [list(table["table"].keys())[0] for table in parent.table_info]
 
     def __getattribute__(self, name):
         table_names = super().__getattribute__('_table_names')
         if name in table_names:
             _insert_row = super().__getattribute__('_insert_row')
-            return lambda **kwargs: _insert_row(name, **kwargs)
+            return lambda **kwargs: asyncio.ensure_future(_insert_row(name, **kwargs))
         return super().__getattribute__(name)
 
-    def _insert_row(self, table_name, **kwargs):
+    async def _insert_row(self, table_name, **kwargs):
         not_null_keys = [table["constraints"].get("not_null", []) for table in self.parent.table_info if list(table["table"].keys())[0] == table_name][0]
         for key in not_null_keys:
             if key not in kwargs:
@@ -105,8 +107,8 @@ class Insert:
         keys = [key for key in kwargs.keys()]
         values = [kwargs[key] for key in keys]
         query = f"INSERT OR IGNORE INTO {table_name} ({','.join(keys)}) VALUES ({', '.join(['?' for _ in range(len(keys))])})"
-        self.parent.cur.execute(query, tuple(values))
-        self.parent.cxn.commit()
+        await self.parent.cur.execute(query, tuple(values))
+        await self.parent.cxn.commit()
 
 
 class DB:
@@ -190,26 +192,28 @@ class DB:
     table_names: list[str] = []
 
     def __init__(self):
-        self.cxn = connect(self.DB_PATH, check_same_thread=False)
-        self.cur = self.cxn.cursor()
+        self.cxn: Connection
+        self.cur: Cursor
         self.get: Get = Get(self)
         self.delete: Delete = Delete(self)
         self.update: Update = Update(self)
         self.insert: Insert = Insert(self)
 
-    def update_table(self, table: str, data: str):
+    async def update_table(self, table: str, data: str):
         try:
-            self.cur.execute(f"SELECT * FROM {table}_new")
-            self.cur.execute(f"INSERT INTO {table} SELECT * FROM {table}_new")
-            self.cur.execute(f"DROP TABLE {table}_new")
+            await self.cur.execute(f"SELECT * FROM {table}_new")
+            await self.cur.execute(f"INSERT INTO {table} SELECT * FROM {table}_new")
+            await self.cur.execute(f"DROP TABLE {table}_new")
         except Error:
             pass
-        self.cur.execute(f"CREATE TABLE {table}_new {data};")
-        self.cur.execute(f"INSERT INTO {table}_new SELECT * FROM {table};")
-        self.cur.execute(f"DROP TABLE {table};")
-        self.cur.execute(f"ALTER TABLE {table}_new RENAME TO {table};")
+        await self.cur.execute(f"CREATE TABLE {table}_new {data};")
+        await self.cur.execute(f"INSERT INTO {table}_new SELECT * FROM {table};")
+        await self.cur.execute(f"DROP TABLE {table};")
+        await self.cur.execute(f"ALTER TABLE {table}_new RENAME TO {table};")
 
-    def build(self) -> None:
+    async def build(self) -> None:
+        self.cxn = await connect(self.DB_PATH, check_same_thread=False)
+        self.cur = await self.cxn.cursor()
         progress = Progress("Building Database", len(self.table_info))
         for table in self.table_info:
             table_data = table['table']
@@ -246,17 +250,17 @@ class DB:
                             create_table_query += f"CHECK({column} {condition}), "
                 create_table_query = create_table_query.rstrip(', ')
                 create_table_query += ")"
-                self.cur.execute(create_table_query)
+                await self.cur.execute(create_table_query)
                 data = re.search(r"\((?<=\()(?:.)+", create_table_query).group()
-                self.update_table(table_name, data)
+                await self.update_table(table_name, data)
                 progress.next()
-        self.commit()
+        await self.commit()
 
-    def commit(self) -> None:
-        self.cxn.commit()
+    async def commit(self) -> None:
+        await self.cxn.commit()
 
-    def close(self) -> None:
-        self.cxn.close()
+    async def close(self) -> None:
+        await self.cxn.close()
 
-    def run(self, command, *values) -> None:
-        self.cur.execute(command, tuple(values))
+    async def run(self, command, *values) -> None:
+        await self.cur.execute(command, tuple(values))

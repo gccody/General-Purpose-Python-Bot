@@ -73,10 +73,11 @@ async def start():
             else:
                 raise exc
 
-    def exit_handler():
-        bot.db.commit()
+    async def exit_handler():
+        asyncio.run(bot.db.commit())
 
-    atexit.register(exit_handler)
+    atexit.register(asyncio.run, (exit_handler,))
+    await bot.db.build()
     await bot.start(bot.config.token)
 
 
