@@ -16,6 +16,7 @@ from discord.errors import NotFound, InteractionResponded
 from discord.ext.commands import AutoShardedBot
 from discord.ext.commands.errors import CommandNotFound, BadArgument
 
+from lib.cache import Cache
 from lib.config import Config
 from lib.db import DB
 from lib.progress import Progress, Timer, Loading
@@ -41,7 +42,7 @@ class Bot(AutoShardedBot):
     def __init__(self, shards: list[int], version: str):
         self.config: Config = Config()
         self.db: DB = DB()
-        self.cache: dict = dict()
+        self.cache: Cache = Cache()
         self.tasks = AsyncIOScheduler(timezone=str(tzlocal.get_localzone()))
         self.shards_ready = False
         self.ready = False
