@@ -46,7 +46,7 @@ class Progress:
         self.total = total
 
     def start(self):
-        sys.stdout.write(f"\r{self.msg} {self.iteration/self.total*100:.2f}%")
+        sys.stdout.write(f"\r{self.msg} [{self.iteration}/{self.total}]")
         sys.stdout.flush()
 
     def next(self):
@@ -54,7 +54,7 @@ class Progress:
             print(self.msg)
         self.iteration += 1
         if self.iteration > self.total: raise ValueError("Can't iterate more then the total")
-        sys.stdout.write(f"\r{self.msg} {self.iteration/self.total*100:.2f}%")
+        sys.stdout.write(f"\r{self.msg} [{self.iteration}/{self.total}]")
         sys.stdout.flush()
         if self.iteration == self.total:
             print("")

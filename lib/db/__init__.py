@@ -264,3 +264,4 @@ class DB:
 
     async def run(self, command, *values) -> None:
         await self.cur.execute(command, tuple(values))
+        await self.commit()

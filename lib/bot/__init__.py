@@ -67,7 +67,7 @@ class Bot(AutoShardedBot):
         await self.register_guilds()
         asyncio.ensure_future(self.monitor_shutdown())
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}")
-        asyncio.ensure_future(self.timer.start())
+        # asyncio.ensure_future(self.timer.start())
 
     async def on_shard_ready(self, shard_id):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
