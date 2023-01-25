@@ -18,7 +18,7 @@ from discord.ext.commands.errors import CommandNotFound, BadArgument
 
 from lib.config import Config
 from lib.db import DB
-from lib.progress import Progress, Timer
+from lib.progress import Progress, Timer, Loading
 from lib.urban import UrbanDictionary
 
 COMMAND_ERROR_REGEX = r"Command raised an exception: (.*?(?=: )): (.*)"
@@ -55,17 +55,20 @@ class Bot(AutoShardedBot):
             owner_id="507214515641778187",
             shards=shards,
             intents=discord.Intents.all(),
-            description="Misc Bot used for advanced moderation and guild customization")
+            description="Misc Bot used for advanced moderation and guild customization",)
         self.tasks.add_job(self.db.commit, trigger='interval', minutes=30)
         self.shard_progress.start()
 
     async def on_connect(self):
         while not self.shards_ready:
             await asyncio.sleep(.5)
+        loading: Loading = Loading("Syncing commands")
+        asyncio.ensure_future(loading.start())
         self.tree.copy_global_to(guild=discord.Object(id="1064582321728143421"))
-        await self.tree.sync(guild=discord.Object(id="1064582321728143421"))
+        commands = await self.tree.sync(guild=discord.Object(id="1064582321728143421"))
+        loading.stop(f"Synced {len(commands)} commands")
         await self.register_guilds()
-        asyncio.ensure_future(self.monitor_shutdown())
+        # asyncio.ensure_future(self.monitor_shutdown())
         print(f"Signed into {self.user.display_name}#{self.user.discriminator}")
         # asyncio.ensure_future(self.timer.start())
 
@@ -113,13 +116,14 @@ class Bot(AutoShardedBot):
         while True:
             if psutil.Process().status() == psutil.STATUS_ZOMBIE:
                 await self.db.commit()
-                break
+                await self.close()
+                raise SystemExit
             if psutil.process_iter(['pid', 'name']):
                 for process in psutil.process_iter():
                     if process.name() == 'shutdown.exe':
                         await self.db.commit()
                         await self.close()
-                        exit()
+                        raise SystemExit
             await asyncio.sleep(1)
 
     async def register_guilds(self):

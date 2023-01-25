@@ -2,6 +2,8 @@ import asyncio
 import atexit
 import glob
 import math
+import os
+import sys
 from http.client import HTTPException
 from signal import signal, SIGINT, SIGTERM
 
@@ -28,8 +30,12 @@ CLUSTERS = math.ceil(len(SHARDS_LIST) / SHARDS_PER_CLUSTER)
 SHARDS_SPLIT: list[np.ndarray[int]] = np.array_split(SHARDS_LIST, CLUSTERS)
 
 
+bots: list[Bot] = []
+
+
 async def start():
     bot = Bot(SHARDS_LIST, VERSION)
+    bots.append(bot)
     progress = Progress("Registering Cogs", len(COGS))
     for index, cog in enumerate(COGS):
         await bot.load_extension(f"lib.cogs.{cog}")
@@ -76,14 +82,15 @@ async def start():
 
     def close():
         bot.loop.run_until_complete(bot.close())
-        bot.loop.stop()
-        bot.loop.close()
         exit()
     atexit.register(close)
-    # signal(SIGINT, close)
+    signal(SIGINT, close)
     await bot.db.build()
     await bot.start(bot.config.token)
 
 
 if __name__ == '__main__':
-    asyncio.run(start())
+    try:
+        asyncio.run(start())
+    except (KeyboardInterrupt, TypeError):
+        print("Press again to close...")
