@@ -1,6 +1,8 @@
-from datetime import datetime
-import sys
 import asyncio
+import sys
+from datetime import datetime
+
+from tqdm.asyncio import tqdm
 
 
 def format_str(amount: int, string: str):
@@ -63,19 +65,25 @@ class Progress:
 class Loading:
     def __init__(self, msg: str):
         self.msg = msg
-        self.step = 0
-        self.pause = .5
-        self.done = False
+        self.iter = 0
+        self.running = True
+        self.length = 0
 
     async def start(self):
-        while not self.done:
-            sys.stdout.write(f"\r{self.msg}{'.'*((self.step%3)+1)}")
+        while self.running:
+            dots = ((self.iter % 3) + 1)
+            string = f"\r{self.msg}{'.' * dots}{' '*(3-dots)}"
+            self.length = len(string)
+            sys.stdout.write(string)
             sys.stdout.flush()
-            self.step += 1
-            await asyncio.sleep(self.pause)
-            if self.done:
-                break
+            self.iter += 1
+            await asyncio.sleep(0.5)
+            if self.iter == 3:
+                self.iter = 0
+
+    def stop(self, finish_msg: str):
+        self.running = False
+        sys.stdout.write(f"\r{finish_msg}{' '*(self.length-len(finish_msg)) if len(finish_msg) <= self.length else ''}")
+        sys.stdout.flush()
         print("")
 
-    def stop(self):
-        self.done = True
